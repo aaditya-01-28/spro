@@ -1,7 +1,7 @@
 // server.js
 const express = require('express');
 const mongoose = require('mongoose');
-const path = path = require('path');
+const path = require('path'); // Corrected line
 require('dotenv').config();
 
 const app = express();
@@ -23,7 +23,7 @@ mongoose.connect(process.env.MONGODB_URI, {
     console.log('Successfully connected to MongoDB Atlas');
 }).catch(err => {
     // This will now show a more useful error if the connection string is wrong
-    console.error('Error connecting to MongoDB Atlas:', err.message); 
+    console.error('Error connecting to MongoDB Atlas:', err.message);
 });
 
 // --- Define MongoDB Schemas and Models ---
