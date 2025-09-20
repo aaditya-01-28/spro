@@ -1,7 +1,7 @@
 // server.js
 const express = require('express');
 const mongoose = require('mongoose');
-const path = require('path'); // Corrected line
+const path = require('path');
 require('dotenv').config();
 
 const app = express();
@@ -9,21 +9,17 @@ const port = process.env.PORT || 10000;
 
 // Middleware
 app.use(express.json());
-// IMPORTANT: Serve static files from a 'public' folder
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-
 // --- Connect to MongoDB Atlas ---
-// This block reads your MONGODB_URI from Render's environment variables
-mongoose.connect(process.env.MONGODB_URI, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-}).then(() => {
+// DEPRECATED OPTIONS REMOVED FOR CLEANER LOGS
+mongoose.connect(process.env.MONGODB_URI)
+.then(() => {
     console.log('Successfully connected to MongoDB Atlas');
-}).catch(err => {
-    // This will now show a more useful error if the connection string is wrong
-    console.error('Error connecting to MongoDB Atlas:', err.message);
+})
+.catch(err => {
+    console.error('Error connecting to MongoDB Atlas:', err.message); 
 });
 
 // --- Define MongoDB Schemas and Models ---
@@ -112,9 +108,7 @@ app.get('/admin/verifications', async (req, res) => {
     }
 });
 
-
 // --- Serve Frontend Files ---
-// This ensures that your index.html and admin.html are served correctly
 app.get('/admin', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'admin.html'));
 });
@@ -122,7 +116,6 @@ app.get('/admin', (req, res) => {
 app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
-
 
 app.listen(port, () => {
     console.log(`Server is running on port ${port}`);
